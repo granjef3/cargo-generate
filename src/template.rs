@@ -11,6 +11,7 @@ use liquid;
 use quicli::prelude::*;
 use std::fs;
 use std::path::{Path, PathBuf};
+use walkdir::{DirEntry, WalkDir};
 
 fn engine() -> liquid::Parser {
     liquid::ParserBuilder::new()
@@ -124,6 +125,26 @@ pub fn walk_dir(
     pbar: ProgressBar,
 ) -> Result<(), failure::Error> {
     let engine = engine();
+
+    for entry in WalkDir::new(project_dir) {
+        let entry = entry?;
+        let filepath = entry.path();
+
+        pbar.set_message(&filepath.display().to_string());
+
+        // Check if the filename does not contains any
+        // template
+        let filename = filepath.to_str().unwrap();
+        let parsed_filename = engine.clone().parse(filename)?.render(&template)?;
+        let _ = fs::rename(&filepath, Path::new(&parsed_filename)).with_context(|_e| {
+            format!(
+                "{} {} '{}'",
+                emoji::ERROR,
+                style("Error renaming").bold().red(),
+                style(parsed_filename).bold()
+            )
+        })?;
+    }
 
     //returning iterators is hard :/
     match template_config {
